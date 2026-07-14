@@ -1,0 +1,159 @@
+
+#step 1 - import libraries, and load dataset 
+from keras.datasets import fashion_mnist
+import numpy as np   
+from keras.utils import to_categorical
+import matplotlib.pyplot as plt 
+from sklearn.model_selection import train_test_split 
+from sklearn.metrics import classification_report
+import pandas as pd
+
+#packages to train the model
+import keras  
+from keras.models import Sequential,Model
+from keras.layers import Dense, Dropout, Flatten
+from keras.layers import Conv2D, MaxPooling2D 
+
+#load training dataset > learn patterns 
+#testing dataset >>> used to measure model performance  
+(datatrain_x,datatrain_y), (test_x, test_y) = fashion_mnist.load_data() #tuples 
+"----------------------------------------------------------------"
+#step 2- anaylize how data looks like -
+#print("Show training: ", datatrain_x.shape)
+
+#find unique numbers from the train labels 
+columns = np.unique(datatrain_x)
+n_classes = len(columns)
+plt.show(datatrain_y.shape)
+
+#look at the images in dateset 
+#plt.figure(figsize=[5,5])
+"show image from training data"
+#plt.subplot(132) #image needs to have 1 row, 3 columns 
+#plt.imshow(datatrain_x[0,:,:] , cmap='twilight') #shows first image in the datatrain 
+#plt.title("training: {} ".format(datatrain_y[-3]))  
+
+"show image from testing data"
+#plt.subplot(133) #image should have 1 row, 3 columns
+#plt.imshow(test_x[0 ,:, :] , cmap="gray ")
+#plt.title("test dataset {}".format(test_y_asxle[-3])) 
+"----------------------------------------------------------------"
+
+###### step 3 - data processing ############################# 
+#to convert data from pixels to a matrix to feed the model 
+datatrain_x = datatrain_x.reshape(-1, 28, 28, 1) #reshaping array into four dimmenions 
+test_x = test_x.reshape( -1, 28, 28, 1) 
+
+'data now in int 8 bits - before I feed the model, convert to data type (float32) ' 
+datatrain_x = datatrain_x.astype('float32')
+test_x = test_x.astype('float32')
+
+datatrain_x = datatrain_x / 255
+test_x = test_x /255 #normalize pixels by dividing the by 255 
+
+dtrain_row_binary = to_categorical(datatrain_y) #convert classes labels to a binary class (matrix). M.L algorythm can't work on pixels  
+dtest_binary_to_row = to_categorical(test_y)
+
+#print("original Label ", datatrain_y[300] ,'\n' )
+
+"""last step of data processing - generalization '
+when the model (cnn) apply learned patterns to unseen data -data that wasn't part of training dataset  
+good generalization: captures unseen patterns    
+'implementation - I train the model on 80% training data and 20% in the remaining data"""
+train_x, valid_x,train_label, validation_label = train_test_split(datatrain_x, dtrain_row_binary , test_size= 0.5, random_state=15)
+"----------------------------------------------------------------"
+
+####### #step 4 - feed the model -(training) ##################3 
+""" Neural Network architecture 
+The model (CNN) 
+-first layer 32 filters (image quality) (3x3 kernel) > max-pooling 2x2
+-second layer 64  (3x3 kernel size) > maxpooling 2x2 
+-thrid layer 128 (3x3 kernel size )
+
+Using keras, I will add layers 1-by-1 (stacking)
+All layers i have convolutional + subsampling (maxPooling) technique - .  
+"""
+batche_size = 128  # number of samples the will pass through the cnn at once 
+epochs = 5 #number of times the dataset will passed through the model - interations 
+num_classes = 10 #number of columns in the datset 
+
+cnn = Sequential() #initialize model object 
+cnn.add( Conv2D(32, kernel_size=(3,3) ,activation='relu', padding='valid', input_shape=(28,28,1 ) )) #first layer -32 filters 
+cnn.add(MaxPooling2D((2,2)))
+
+cnn.add(Conv2D(64, kernel_size=(3 ,3), activation='relu', padding='valid')) #second layer - 64 filters 
+cnn.add(MaxPooling2D((2,2)))
+
+cnn.add(Conv2D(128, kernel_size=(3,3),  activation="relu", padding='valid'))# thrid layer - 128 filters 
+cnn.add(MaxPooling2D((2,2))) 
+
+cnn.add(Flatten()) #flattens output of last layer into 1D array 
+cnn.add(Dense( 128, activation="relu")) #function add connected layer to model with 128 neurons 
+cnn.add(Dense(num_classes, activation="softmax" ))
+
+#when model is ready, compile using 'Adam' algorythm optimization - 
+cnn.compile(loss=keras.losses.categorical_crossentropy, optimizer=keras.optimizers.Adam() ,metrics=['accuracy']) 
+#cnn.summary() 
+"----------------------------------------------------------------"
+
+#train the model > find patterns 
+train_model = cnn.fit( train_x, train_label, batch_size=batche_size, epochs=epochs, validation_data=(valid_x, validation_label))
+
+"""difference between val_accuracy: 0.8897 and val_loss: 0.3405 > overlifting. 
+mean that the model 'memorized' the training dataset, but that doesn't mean 
+that will do same for unseen data (generalization). 
+to make the model find balance between val_accuracy and val_loss, do model evaluation  """
+model_eval = cnn.evaluate(test_x, dtest_binary_to_row, verbose=1 )
+
+#put the cnn into perspective"
+model_accuracy = train_model.history['accuracy']
+vald_accuracy = train_model.history['accuracy']
+
+model_loss = train_model.history['loss'] #measurement how good model predictions match the values in training data
+validate_loss = train_model.history['loss'] 
+
+number_epochs = range(len(model_accuracy)) #range() creates list of integers 
+
+#code to show model evaluation 
+plt.plot( number_epochs, model_accuracy, 'bo', label="Training accuracy")
+plt.plot(number_epochs, vald_accuracy, 'b', label=" Validation accuracy")
+plt.title("Accuracy with training and validation")
+plt.legend( )
+plt.figure()  
+
+plt.plot(number_epochs, model_loss, 'bo', label="Training loss")
+plt.plot(number_epochs, validate_loss, 'b', label=" Validation loss")
+plt.title( "Training loss and validation loss")
+plt.legend()
+plt.show() 
+
+"----------------------------------------------------------------"
+# step 5 - predict labels 
+predicted_classes = cnn.predict(test_x) #predict() uses the model to predict the dataset labels'
+
+predicted_classes = np.argmax(np.round(predicted_classes), axis=1)
+'the label predictions are in floating point. I have to convert labels from floating point into integer'
+#======================================================================
+'see the correct predicted labels in a classification'
+correct_predicted_label = np.where(predicted_classes == test_y)[0] #find indices where the predicted class matches the dataset' 
+print(" found %d correct labels " % len(correct_predicted_label)) 
+
+'create a loop to iterate over the first 8 right predictions'
+for c , correct_predicted_label in enumerate(correct_predicted_label[:8]):
+    plt.subplot(4 ,4, c+1) #grid 4 rows x4 collumns  
+    plt.imshow(test_x[correct_predicted_label].reshape(28,28), cmap='twilight')
+    plt.title( "Class {}, CNN found {} correct items for that class \n".format(predicted_classes[correct_predicted_label], test_y[correct_predicted_label]))
+    plt.show()
+
+#=====================================================================
+'to see wrong predicted labels in a classification'
+wrong_predict_labels = np.where(predicted_classes != test_y)[0]
+print("found %d wrong labels" % len(wrong_predict_labels))
+'build loop to iterate over the 8 wrong predictions'  
+for wrong , wrong_predict_labels in enumerate(wrong_predict_labels[:8]):
+    plt.subplot(4,4, wrong +1)
+    plt.imshow(test_x[wrong_predict_labels].reshape(28,28), cmap='gray')
+    plt.title('Class {}, CNN found {} wrong items for that class\n'. format(predicted_classes[wrong_predict_labels], test_y[correct_predicted_label]) )
+    plt.show()
+"----------------------------------------------------------------"
+
